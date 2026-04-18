@@ -1,0 +1,396 @@
+{% extends "base.html" %}
+{% block title %}나의 자산 포트폴리오{% endblock %}
+{% block content %}
+  <section class="space-y-4 pb-24">
+    <header class="rounded-3xl p-5 shadow-sm text-white dashboard-hero">
+      <p class="text-xs text-blue-100">실시간 평가 기준 (KRW)</p>
+      <h1 class="text-xl font-bold mt-1">나의 자산 포트폴리오</h1>
+      <p class="mt-3 text-sm text-blue-100">총 자산</p>
+      <p class="text-3xl font-semibold tracking-tight">₩ {{ "{:,.0f}".format(portfolio.totals.all) }}</p>
+      <div class="mt-3 text-xs text-blue-100">
+        USD/KRW {{ "{:,.2f}".format(portfolio.usdkrw) }} · 금 1g ₩ {{ "{:,.0f}".format(portfolio.gold_per_gram_krw) }}
+      </div>
+    </header>
+
+    <section id="tab-portfolio" class="tab-panel space-y-4">
+      <article class="rounded-2xl bg-white p-4 shadow-sm">
+        <h2 class="font-semibold mb-3">자산 비중</h2>
+        {% set risk_end = portfolio.ratios.risk %}
+        {% set safe_end = risk_end + portfolio.ratios.safe %}
+        {% set cash_end = safe_end + portfolio.ratios.cash %}
+        <div class="flex items-center gap-4">
+          <div
+            class="pie-chart"
+            style="background:
+              conic-gradient(
+                #3b82f6 0% {{ risk_end }}%,
+                #14b8a6 {{ risk_end }}% {{ safe_end }}%,
+                #6366f1 {{ safe_end }}% {{ cash_end }}%,
+                #f59e0b {{ cash_end }}% 100%
+              );"
+          ></div>
+          <div class="space-y-2 text-xs w-full">
+            <div class="legend-row">
+              <span class="dot bg-blue-500"></span>
+              <span>위험자산 (주식)</span>
+              <span>{{ "{:.1f}".format(portfolio.ratios.risk) }}%</span>
+            </div>
+            <div class="legend-row">
+              <span class="dot bg-teal-500"></span>
+              <span>안전자산 (금)</span>
+              <span>{{ "{:.1f}".format(portfolio.ratios.safe) }}%</span>
+            </div>
+            <div class="legend-row">
+              <span class="dot bg-indigo-500"></span>
+              <span>현금성 자산 (현금+달러)</span>
+              <span>{{ "{:.1f}".format(portfolio.ratios.cash) }}%</span>
+            </div>
+            <div class="legend-row">
+              <span class="dot bg-amber-500"></span>
+              <span>부동산</span>
+              <span>{{ "{:.1f}".format(portfolio.ratios.real_estate) }}%</span>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="rounded-2xl bg-white p-4 shadow-sm">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="font-semibold">저장된 자산</h2>
+          <span class="text-xs text-slate-500">{{ portfolio.assets|length }}건</span>
+        </div>
+        {% if portfolio.assets %}
+          <ul class="space-y-2">
+            {% for asset in portfolio.assets %}
+              <li class="border border-slate-200 rounded-xl">
+                <button
+                  type="button"
+                  class="w-full text-left p-3 asset-item-btn"
+                  data-asset-id="{{ asset.id }}"
+                  data-asset-name="{{ asset.name }}"
+                  data-asset-quantity="{{ asset.quantity }}"
+                  data-asset-note="{{ asset.note or '' }}"
+                >
+                  <div>
+                    <p class="font-medium">{{ asset.name }}</p>
+                    <p class="text-xs text-slate-500">{{ asset.asset_type }}{% if asset.symbol %} · {{ asset.symbol }}{% endif %}</p>
+                    <p class="text-xs text-slate-500 mt-1">수량/금액: {{ "{:,.4f}".format(asset.quantity) }}</p>
+                    <p class="text-xs text-slate-500">시세: {{ asset.market_label }}</p>
+                    <p class="text-sm mt-1">평가금액: <strong>₩ {{ "{:,.0f}".format(asset.value_krw) }}</strong></p>
+                    {% if asset.note %}
+                      <p class="text-xs text-slate-600 mt-1">메모: {{ asset.note }}</p>
+                    {% endif %}
+                  </div>
+                </button>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="text-sm text-slate-500">아직 등록된 자산이 없습니다.</p>
+        {% endif %}
+      </article>
+    </section>
+
+    <section id="tab-input" class="tab-panel hidden space-y-4">
+      <article class="rounded-2xl bg-white p-4 shadow-sm space-y-4">
+        <h2 class="font-semibold">자산 입력</h2>
+
+        <form class="space-y-2" method="post" action="{{ url_for('dashboard.add_asset') }}">
+          <input type="hidden" name="asset_type" value="STOCK" />
+          <p class="text-sm font-medium">주식</p>
+          <div class="grid grid-cols-2 gap-2">
+            <input name="symbol" required placeholder="티커 (AAPL, 005930)" class="input" />
+            <input name="quantity" required type="number" min="0" step="0.0001" placeholder="수량" class="input" />
+          </div>
+          <button type="submit" class="btn">주식 저장</button>
+        </form>
+
+        <form class="space-y-2" method="post" action="{{ url_for('dashboard.add_asset') }}">
+          <input type="hidden" name="asset_type" value="GOLD" />
+          <p class="text-sm font-medium">금</p>
+          <input name="grams" required type="number" min="0" step="0.01" placeholder="중량(g)" class="input" />
+          <button type="submit" class="btn">금 저장</button>
+        </form>
+
+        <form class="space-y-2" method="post" action="{{ url_for('dashboard.add_asset') }}">
+          <input type="hidden" name="asset_type" value="CASH_KRW" />
+          <p class="text-sm font-medium">현금 (KRW)</p>
+          <input name="amount_krw" required type="number" min="0" step="1" placeholder="원화 금액" class="input" />
+          <button type="submit" class="btn">현금 저장</button>
+        </form>
+
+        <form class="space-y-2" method="post" action="{{ url_for('dashboard.add_asset') }}">
+          <input type="hidden" name="asset_type" value="CASH_USD" />
+          <p class="text-sm font-medium">달러 (USD)</p>
+          <input name="amount_usd" required type="number" min="0" step="0.01" placeholder="달러 금액" class="input" />
+          <button type="submit" class="btn">달러 저장</button>
+        </form>
+
+        <form class="space-y-2" method="post" action="{{ url_for('dashboard.add_asset') }}">
+          <input type="hidden" name="asset_type" value="REAL_ESTATE" />
+          <p class="text-sm font-medium">부동산 (아파트)</p>
+          <div class="grid grid-cols-2 gap-2">
+            <input id="apartment_name_input" name="apartment_name" required placeholder="아파트명" class="input" />
+            <input id="area_m2_input" name="area_m2" required type="number" min="1" step="0.01" placeholder="전용면적(m2)" class="input" />
+          </div>
+          <select id="region_code_select" class="input">
+            <option value="">지역 선택 (선택 안 하면 이름기반 광역 검색)</option>
+            <optgroup label="서울">
+              <option value="11680">강남구</option>
+              <option value="11650">서초구</option>
+              <option value="11710">송파구</option>
+              <option value="11740">강동구</option>
+              <option value="11440">마포구</option>
+              <option value="11410">서대문구</option>
+            </optgroup>
+            <optgroup label="경기 - 수원">
+              <option value="41111">수원시 장안구</option>
+              <option value="41113">수원시 권선구</option>
+              <option value="41115">수원시 팔달구</option>
+              <option value="41117">수원시 영통구</option>
+            </optgroup>
+            <optgroup label="경기 - 주요">
+              <option value="41135">성남시 분당구</option>
+              <option value="41220">평택시</option>
+              <option value="41390">시흥시</option>
+              <option value="41480">파주시</option>
+            </optgroup>
+            <option value="__manual__">직접 코드 입력</option>
+          </select>
+          <input id="region_code_manual_input" placeholder="직접 지역코드 5자리 입력" class="input hidden" />
+          <input id="region_code_input" name="region_code" type="hidden" />
+          <button id="open_apartment_search" type="button" class="btn-secondary">아파트명 검색해서 선택</button>
+          <input id="manual_price_krw_input" name="manual_price_krw" type="number" min="0" step="1" placeholder="수동 실거래가(원, 자동조회 실패 시)" class="input" />
+          <p class="text-xs text-slate-500">지역 선택 시 조회가 빠르고 정확해집니다.</p>
+          <button type="submit" class="btn">부동산 저장</button>
+        </form>
+      </article>
+    </section>
+
+    <nav class="bottom-tabs">
+      <button id="tab-btn-portfolio" type="button" class="tab-btn is-active" data-tab="portfolio">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13.5a1 1 0 0 1 1-1h2.2a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-6.5Zm6.9-4a1 1 0 0 1 1-1h2.2a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1h-2.2a1 1 0 0 1-1-1V9.5Zm6.9-5.5a1 1 0 0 1 1-1H20a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1h-2.2a1 1 0 0 1-1-1V4Z"/></svg>
+        <span>포트폴리오</span>
+      </button>
+      <button id="tab-btn-input" type="button" class="tab-btn" data-tab="input">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4a1 1 0 0 1 2 0v7h7a1 1 0 1 1 0 2h-7v7a1 1 0 1 1-2 0v-7H4a1 1 0 1 1 0-2h7V4Z"/></svg>
+        <span>자산 입력</span>
+      </button>
+    </nav>
+  </section>
+
+  <div id="apartment_modal" class="modal hidden">
+    <div class="modal-panel">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="font-semibold">아파트 검색</h3>
+        <button id="close_apartment_modal" type="button" class="text-slate-500">닫기</button>
+      </div>
+      <p class="text-xs text-slate-500 mb-2">아파트명으로 검색합니다. 지역코드를 넣으면 더 빠릅니다.</p>
+      <div class="flex gap-2 mb-2">
+        <input id="modal_query_input" class="input" placeholder="아파트명 검색어 (2글자 이상)" />
+        <button id="modal_search_btn" type="button" class="btn !w-auto px-4">검색</button>
+      </div>
+      <p id="modal_error_text" class="text-xs text-red-600 hidden mb-2"></p>
+      <ul id="modal_results" class="space-y-2 max-h-72 overflow-y-auto"></ul>
+    </div>
+  </div>
+
+  <div id="asset_edit_modal" class="modal hidden">
+    <div class="modal-panel">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="font-semibold">보유 자산 수정</h3>
+        <button id="close_asset_edit_modal" type="button" class="text-slate-500">닫기</button>
+      </div>
+      <p id="asset_edit_title" class="text-sm font-medium mb-3"></p>
+      <form id="asset_edit_form" method="post" class="space-y-2">
+        <label class="text-xs text-slate-500">수량/금액</label>
+        <input id="asset_edit_quantity" name="quantity" type="number" min="0.0001" step="0.0001" class="input" required />
+        <label class="text-xs text-slate-500">메모</label>
+        <textarea id="asset_edit_note" name="note" class="input" rows="3" placeholder="간단한 메모를 작성하세요"></textarea>
+        <button type="submit" class="btn">수정 저장</button>
+      </form>
+      <form id="asset_delete_form" method="post" class="mt-2">
+        <button type="submit" class="btn-danger">자산 삭제</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const tabPanels = {
+        portfolio: document.getElementById("tab-portfolio"),
+        input: document.getElementById("tab-input"),
+      };
+      const tabButtons = Array.from(document.querySelectorAll(".tab-btn"));
+      const setTab = (name) => {
+        Object.entries(tabPanels).forEach(([key, panel]) => {
+          if (!panel) return;
+          panel.classList.toggle("hidden", key !== name);
+        });
+        tabButtons.forEach((btn) => {
+          btn.classList.toggle("is-active", btn.dataset.tab === name);
+        });
+        localStorage.setItem("dashboardActiveTab", name);
+      };
+      tabButtons.forEach((btn) => {
+        btn.addEventListener("click", () => setTab(btn.dataset.tab));
+      });
+      setTab(localStorage.getItem("dashboardActiveTab") || "portfolio");
+
+      const openBtn = document.getElementById("open_apartment_search");
+      const closeBtn = document.getElementById("close_apartment_modal");
+      const modal = document.getElementById("apartment_modal");
+      const searchBtn = document.getElementById("modal_search_btn");
+      const results = document.getElementById("modal_results");
+      const errorText = document.getElementById("modal_error_text");
+      const queryInput = document.getElementById("modal_query_input");
+      const regionInput = document.getElementById("region_code_input");
+      const regionSelect = document.getElementById("region_code_select");
+      const regionManualInput = document.getElementById("region_code_manual_input");
+      const aptInput = document.getElementById("apartment_name_input");
+      const areaInput = document.getElementById("area_m2_input");
+      const manualInput = document.getElementById("manual_price_krw_input");
+      const assetEditModal = document.getElementById("asset_edit_modal");
+      const closeAssetEditModal = document.getElementById("close_asset_edit_modal");
+      const assetEditForm = document.getElementById("asset_edit_form");
+      const assetDeleteForm = document.getElementById("asset_delete_form");
+      const assetEditTitle = document.getElementById("asset_edit_title");
+      const assetEditQuantity = document.getElementById("asset_edit_quantity");
+      const assetEditNote = document.getElementById("asset_edit_note");
+      const assetItemButtons = Array.from(document.querySelectorAll(".asset-item-btn"));
+
+      if (!openBtn || !modal) return;
+
+      const showError = (message) => {
+        errorText.textContent = message;
+        errorText.classList.remove("hidden");
+      };
+      const hideError = () => {
+        errorText.textContent = "";
+        errorText.classList.add("hidden");
+      };
+
+      const syncRegionCode = () => {
+        if (!regionSelect || !regionInput || !regionManualInput) return;
+        if (regionSelect.value === "__manual__") {
+          regionManualInput.classList.remove("hidden");
+          regionInput.value = (regionManualInput.value || "").trim();
+        } else {
+          regionManualInput.classList.add("hidden");
+          regionInput.value = regionSelect.value || "";
+        }
+      };
+
+      const renderItems = (items) => {
+        results.innerHTML = "";
+        if (!items.length) {
+          results.innerHTML = '<li class="text-xs text-slate-500 p-2">검색 결과가 없습니다.</li>';
+          return;
+        }
+        items.forEach((item) => {
+          const li = document.createElement("li");
+          li.className = "border border-slate-200 rounded-xl p-2";
+          li.innerHTML = `
+            <button type="button" class="w-full text-left">
+              <p class="text-sm font-medium">${item.apartment_name}</p>
+              <p class="text-xs text-slate-500">전용 ${Number(item.area_m2).toFixed(2)}m2 · ${item.jibun || "-"}</p>
+              <p class="text-xs text-slate-500">최근거래 ${item.deal_date} · ₩ ${Number(item.deal_price_krw).toLocaleString()}</p>
+            </button>
+          `;
+          li.querySelector("button").addEventListener("click", () => {
+            aptInput.value = item.apartment_name || "";
+            areaInput.value = Number(item.area_m2 || 0).toFixed(2);
+            if (item.region_code) {
+              const option = regionSelect.querySelector(`option[value="${item.region_code}"]`);
+              if (option) {
+                regionSelect.value = item.region_code;
+              } else {
+                regionSelect.value = "__manual__";
+                regionManualInput.value = item.region_code;
+              }
+              syncRegionCode();
+            }
+            if (!manualInput.value && item.deal_price_krw > 0) {
+              manualInput.value = Math.round(item.deal_price_krw);
+            }
+            modal.classList.add("hidden");
+          });
+          results.appendChild(li);
+        });
+      };
+
+      const runSearch = async () => {
+        hideError();
+        const q = (queryInput.value || "").trim();
+        if (q.length < 2) {
+          showError("검색어는 2글자 이상 입력해 주세요.");
+          return;
+        }
+        results.innerHTML = '<li class="text-xs text-slate-500 p-2">조회 중...</li>';
+        try {
+          const regionCode = (regionInput.value || "").trim();
+          const response = await fetch(`/api/apartments/search?region_code=${encodeURIComponent(regionCode)}&q=${encodeURIComponent(q)}`);
+          const data = await response.json();
+          if (!data.ok) {
+            showError(data.error || "검색 중 오류가 발생했습니다.");
+            results.innerHTML = "";
+            return;
+          }
+          renderItems(data.items || []);
+        } catch (e) {
+          showError("네트워크 오류가 발생했습니다.");
+          results.innerHTML = "";
+        }
+      };
+
+      openBtn.addEventListener("click", () => {
+        setTab("input");
+        hideError();
+        results.innerHTML = "";
+        queryInput.value = aptInput.value || "";
+        syncRegionCode();
+        modal.classList.remove("hidden");
+        queryInput.focus();
+      });
+      closeBtn.addEventListener("click", () => modal.classList.add("hidden"));
+      searchBtn.addEventListener("click", runSearch);
+      if (regionSelect) regionSelect.addEventListener("change", syncRegionCode);
+      if (regionManualInput) regionManualInput.addEventListener("input", syncRegionCode);
+      syncRegionCode();
+      queryInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          runSearch();
+        }
+      });
+      modal.addEventListener("click", (event) => {
+        if (event.target === modal) modal.classList.add("hidden");
+      });
+
+      const openAssetEdit = (button) => {
+        const assetId = button.dataset.assetId;
+        const name = button.dataset.assetName || "";
+        const quantity = button.dataset.assetQuantity || "";
+        const note = button.dataset.assetNote || "";
+        assetEditTitle.textContent = name;
+        assetEditQuantity.value = Number(quantity).toFixed(4);
+        assetEditNote.value = note;
+        assetEditForm.action = `/assets/${assetId}/update`;
+        assetDeleteForm.action = `/assets/${assetId}/delete`;
+        assetEditModal.classList.remove("hidden");
+      };
+
+      assetItemButtons.forEach((button) => {
+        button.addEventListener("click", () => openAssetEdit(button));
+      });
+      if (closeAssetEditModal) {
+        closeAssetEditModal.addEventListener("click", () => assetEditModal.classList.add("hidden"));
+      }
+      if (assetEditModal) {
+        assetEditModal.addEventListener("click", (event) => {
+          if (event.target === assetEditModal) assetEditModal.classList.add("hidden");
+        });
+      }
+    })();
+  </script>
+{% endblock %}
