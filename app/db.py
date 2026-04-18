@@ -1,62 +1,61 @@
-import sqlite3
+import os
+import psycopg2
+from psycopg2.extras import RealDictCursor
+from flask import current_app, g
 from typing import Any
 
-from flask import current_app, g
-
-
-def get_db() -> sqlite3.Connection:
+def get_db():
     """
-    Return one SQLite connection per request context.
-    The connection is cached in Flask `g` and closed in teardown.
+    PostgreSQL 연결을 관리합니다. (Supabase 연결)
     """
     if "db" not in g:
-        g.db = sqlite3.connect(current_app.config["DATABASE"])
-        g.db.row_factory = sqlite3.Row
+        db_url = os.environ.get('DATABASE_URL')
+        # RealDictCursor를 사용하여 SQLite의 Row처럼 사전형으로 데이터를 가져옵니다.
+        g.db = psycopg2.connect(db_url, cursor_factory=RealDictCursor)
     return g.db
-
 
 def close_db(e: Exception | None = None) -> None:
     """
-    Close DB connection safely after each request.
+    요청이 끝나면 DB 연결을 닫습니다.
     """
-    _ = e  # Explicitly ignore; kept for Flask teardown signature.
     db = g.pop("db", None)
     if db is not None:
         db.close()
 
-
 def init_db() -> None:
     """
-    Initialize schema if it does not already exist.
-    This function is idempotent and can be called at app startup.
+    테이블이 없으면 생성합니다. (PostgreSQL 문법 적용)
     """
     db = get_db()
-    db.execute(
-        """
-        CREATE TABLE IF NOT EXISTS assets (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            asset_type TEXT NOT NULL,
-            symbol TEXT,
-            name TEXT NOT NULL,
-            quantity REAL NOT NULL DEFAULT 0,
-            meta TEXT,
-            note TEXT,
-            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    with db.cursor() as cur:
+        # 1. 테이블 생성 (AUTOINCREMENT 대신 SERIAL 사용)
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS assets (
+                id SERIAL PRIMARY KEY,
+                asset_type TEXT NOT NULL,
+                symbol TEXT,
+                name TEXT NOT NULL,
+                quantity REAL NOT NULL DEFAULT 0,
+                meta TEXT,
+                note TEXT,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            )
+            """
         )
-        """
-    )
 
-    # Lightweight migration for users who already had the older schema.
-    existing_columns = {
-        row["name"] for row in db.execute("PRAGMA table_info(assets)").fetchall()
-    }
-    if "meta" not in existing_columns:
-        db.execute("ALTER TABLE assets ADD COLUMN meta TEXT")
-    if "note" not in existing_columns:
-        db.execute("ALTER TABLE assets ADD COLUMN note TEXT")
-
+        # 2. 마이그레이션 로직 (PostgreSQL 방식)
+        cur.execute(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = 'assets'"
+        )
+        existing_columns = {row['column_name'] for row in cur.fetchall()}
+        
+        if "meta" not in existing_columns:
+            cur.execute("ALTER TABLE assets ADD COLUMN meta TEXT")
+        if "note" not in existing_columns:
+            cur.execute("ALTER TABLE assets ADD COLUMN note TEXT")
+            
     db.commit()
-
 
 def insert_asset(
     asset_type: str,
@@ -66,55 +65,47 @@ def insert_asset(
     meta: str | None = None,
     note: str | None = None,
 ) -> None:
-    """
-    Insert one asset row into DB.
-    """
     db = get_db()
-    db.execute(
-        """
-        INSERT INTO assets (asset_type, symbol, name, quantity, meta, note)
-        VALUES (?, ?, ?, ?, ?, ?)
-        """,
-        (asset_type, symbol, name, quantity, meta, note),
-    )
+    with db.cursor() as cur:
+        # ? 대신 %s 사용
+        cur.execute(
+            """
+            INSERT INTO assets (asset_type, symbol, name, quantity, meta, note)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (asset_type, symbol, name, quantity, meta, note),
+        )
     db.commit()
-
 
 def update_asset(asset_id: int, quantity: float, note: str | None) -> None:
-    """
-    Update editable fields for an existing asset.
-    """
     db = get_db()
-    db.execute(
-        """
-        UPDATE assets
-        SET quantity = ?, note = ?
-        WHERE id = ?
-        """,
-        (quantity, note, asset_id),
-    )
+    with db.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE assets
+            SET quantity = %s, note = %s
+            WHERE id = %s
+            """,
+            (quantity, note, asset_id),
+        )
     db.commit()
-
 
 def delete_asset(asset_id: int) -> None:
-    """
-    Delete one asset by id.
-    """
     db = get_db()
-    db.execute("DELETE FROM assets WHERE id = ?", (asset_id,))
+    with db.cursor() as cur:
+        cur.execute("DELETE FROM assets WHERE id = %s", (asset_id,))
     db.commit()
 
-
 def fetch_assets() -> list[dict[str, Any]]:
-    """
-    Fetch all assets as plain dictionaries for easier processing in services.
-    """
     db = get_db()
-    rows = db.execute(
-        """
-        SELECT id, asset_type, symbol, name, quantity, meta, note, created_at
-        FROM assets
-        ORDER BY id DESC
-        """
-    ).fetchall()
+    with db.cursor() as cur:
+        cur.execute(
+            """
+            SELECT id, asset_type, symbol, name, quantity, meta, note, created_at
+            FROM assets
+            ORDER BY id DESC
+            """
+        )
+        rows = cur.fetchall()
+    # RealDictCursor를 썼기 때문에 이미 dict 형태입니다.
     return [dict(row) for row in rows]
