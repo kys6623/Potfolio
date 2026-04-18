@@ -1,7 +1,7 @@
 import os
-import psycopg
-from psycopg.rows import dict_row
-from flask import current_app, g
+import psycopg2
+from psycopg2.extras import RealDictCursor
+from flask import g
 from typing import Any
 
 def get_db():
