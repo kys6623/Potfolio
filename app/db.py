@@ -6,12 +6,19 @@ from typing import Any
 
 def get_db():
     if "db" not in g:
+        # 환경 변수에서 URL을 가져옴
         db_url = os.environ.get('DATABASE_URL')
-        # connect_timeout을 추가하여 네트워크 응답을 조금 더 기다리도록 합니다.
+        
+        # psycopg2.connect에 host/port/dbname 등을 분리해서 전달
+        # 이렇게 하면 내부적인 주소 해석(DNS Resolution) 이슈를 줄일 수 있습니다.
         g.db = psycopg2.connect(
-            db_url, 
-            cursor_factory=RealDictCursor, 
-            connect_timeout=10 
+            db_url,
+            cursor_factory=RealDictCursor,
+            connect_timeout=15, # 대기 시간을 15초로 늘림
+            keepalives=1,       # 연결 끊김 방지
+            keepalives_idle=30,
+            keepalives_interval=10,
+            keepalives_count=5
         )
     return g.db
 
