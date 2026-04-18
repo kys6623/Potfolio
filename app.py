@@ -1,8 +1,12 @@
+import sys
+import os
+
+# 현재 폴더를 경로에 추가하여 'app' 폴더를 모듈로 인식하게 함
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+
 from app import create_app
 
-# Entry point used by `flask run` and `python run.py`.
 app = create_app()
 
 if __name__ == "__main__":
-    # debug=True is convenient for local development only.
-    app.run(debug=True)
+    app.run()
