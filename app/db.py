@@ -7,8 +7,12 @@ from typing import Any
 def get_db():
     if "db" not in g:
         db_url = os.environ.get('DATABASE_URL')
-        # psycopg2를 사용합니다.
-        g.db = psycopg2.connect(db_url, cursor_factory=RealDictCursor)
+        # connect_timeout을 추가하여 네트워크 응답을 조금 더 기다리도록 합니다.
+        g.db = psycopg2.connect(
+            db_url, 
+            cursor_factory=RealDictCursor, 
+            connect_timeout=10 
+        )
     return g.db
 
 def close_db(e=None):
@@ -17,21 +21,24 @@ def close_db(e=None):
         db.close()
 
 def init_db():
-    db = get_db()
-    with db.cursor() as cur:
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS assets (
-                id SERIAL PRIMARY KEY,
-                asset_type TEXT NOT NULL,
-                symbol TEXT,
-                name TEXT NOT NULL,
-                quantity REAL NOT NULL DEFAULT 0,
-                meta TEXT,
-                note TEXT,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-    db.commit()
+    try:
+        db = get_db()
+        with db.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS assets (
+                    id SERIAL PRIMARY KEY,
+                    asset_type TEXT NOT NULL,
+                    symbol TEXT,
+                    name TEXT NOT NULL,
+                    quantity REAL NOT NULL DEFAULT 0,
+                    meta TEXT,
+                    note TEXT,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+        db.commit()
+    except Exception as e:
+        print(f"DB 초기화 오류: {e}")
 
 # 나머지 함수들도 psycopg2 문법(%s)을 유지합니다.
 def fetch_assets() -> list[dict[str, Any]]:
@@ -60,4 +67,3 @@ def update_asset(asset_id: int, quantity: float, note: str | None = None) -> Non
     with db.cursor() as cur:
         cur.execute("UPDATE assets SET quantity = %s, note = %s WHERE id = %s", (quantity, note, asset_id))
     db.commit()
-# 기타 update_asset, delete_asset 등도 동일하게 psycopg2 문법 유지

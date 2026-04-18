@@ -2,3 +2,4 @@ Flask
 yfinance
 requests
 psycopg2-binary
+SQLAlchemy
