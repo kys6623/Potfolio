@@ -1,14 +1,8 @@
-from flask import Flask
-import yfinance as yf
+from app import create_app
 
-app = Flask(__name__)
-
-@app.route('/')
-def home():
-    # 애플(AAPL) 주가 정보를 가져오는 예시
-    ticker = yf.Ticker("AAPL")
-    price = ticker.history(period="1d")['Close'].iloc[-1]
-    return f"현재 애플 주가: {price:.2f} 달러"
+# Entry point used by `flask run` and `python run.py`.
+app = create_app()
 
 if __name__ == "__main__":
-    app.run()
+    # debug=True is convenient for local development only.
+    app.run(debug=True)
