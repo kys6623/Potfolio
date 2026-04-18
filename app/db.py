@@ -49,4 +49,15 @@ def insert_asset(asset_type, symbol, name, quantity, meta=None, note=None):
         )
     db.commit()
 
+def delete_asset(asset_id: int) -> None:
+    db = get_db()
+    with db.cursor() as cur:
+        cur.execute("DELETE FROM assets WHERE id = %s", (asset_id,))
+    db.commit()
+    
+def update_asset(asset_id: int, quantity: float, note: str | None = None) -> None:
+    db = get_db()
+    with db.cursor() as cur:
+        cur.execute("UPDATE assets SET quantity = %s, note = %s WHERE id = %s", (quantity, note, asset_id))
+    db.commit()
 # 기타 update_asset, delete_asset 등도 동일하게 psycopg2 문법 유지
