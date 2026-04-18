@@ -1,15 +1,14 @@
 from flask import Flask
 import yfinance as yf
-import requests
 
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "웹앱이 정상적으로 작동 중입니다!"
-
-# 여기에 기존에 작성하셨던 yfinance나 requests 관련 로직을 
-# 아래에 추가하시면 됩니다.
+    # 애플(AAPL) 주가 정보를 가져오는 예시
+    ticker = yf.Ticker("AAPL")
+    price = ticker.history(period="1d")['Close'].iloc[-1]
+    return f"현재 애플 주가: {price:.2f} 달러"
 
 if __name__ == "__main__":
     app.run()
