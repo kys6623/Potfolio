@@ -1,4 +1,4 @@
 Flask
 yfinance
 requests
-psycopg2-binary
+psycopg
