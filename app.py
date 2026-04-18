@@ -1,8 +1,8 @@
 import sys
 import os
 
-# 현재 폴더를 경로에 추가하여 'app' 폴더를 모듈로 인식하게 함
-sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+# 현재 파일이 있는 디렉토리를 경로 맨 앞에 추가
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
 from app import create_app
 
